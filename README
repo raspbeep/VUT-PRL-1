@@ -1,0 +1,17 @@
+
+pocet_procesorov = log(n) + 1
+
+- kazdy proces prijima od myRank() - 1
+- kazdy proces zasiela do myRank() + 1
+
+Prvy procesor (master) iba posiela prvky do dvoch front
+
+            |    | -> 5276
+15328746 -> | P1 |
+            |    | -> 1384
+
+
+-- Pi zacne vtedy, ked ma na jednom vstupe postupnost dlzky 2^(i-2) a na druhom vstupe dlzky 1 
+5276 -> |    | -> 
+        | Pi |
+1384 -> |    | -> 
