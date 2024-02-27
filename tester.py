@@ -42,10 +42,9 @@ def run(count_numbers):
         raise Exception
 
 if __name__ == "__main__":
-    filename = "numbers"
-    n_tests = 1
+    n_tests = 100
     try:
         for i in range(n_tests):
-            run(count_numbers=random.randint(0, 10000000))
+            run(count_numbers=random.randint(0, 1000))
     except Exception as e:
         exit(-1)
