@@ -44,13 +44,18 @@ void front_pop_dec(std::queue<u_int8_t>* q, uint8_t* n, int* c) {
 
 int send_numbers() {
     std::ifstream numbers_file(NUMBERS_FILE_NAME, std::ios::binary | std::ios::ate);
-    if (!numbers_file) return -1;
+    if (!numbers_file) {
+        fprintf(stderr, "Cannot open input file.\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+        return -1;
+    }
 
     std::streampos size = numbers_file.tellg();
     numbers_file.seekg(0, std::ios::beg);
 
     std::vector<uint8_t> arr(size);
     if (!numbers_file.read(reinterpret_cast<char*>(arr.data()), size)) {
+        MPI_Abort(MPI_COMM_WORLD, -1);
         return -1;
     }
 
@@ -62,9 +67,14 @@ int send_numbers() {
     int size_int = static_cast<int>(size);
     MPI_Bcast(&size_int, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    for (int i=0; i < size_int ; i++) {
-        MPI_Send(&arr[i], 1, MPI_UINT8_T, 1, i % 2 == 0 ? TAG1 : TAG2, MPI_COMM_WORLD);
-        if(DBG) printf("%s [%d] (%d) Sending %d to %d(Q%d).\n", TABS, _my_rank(), i, arr[i], _my_rank() + 1, i % 2 == 0 ? TAG1 : TAG2);
+    if (size_int > 1) {
+        for (int i=0; i < size_int ; i++) {
+            MPI_Send(&arr[i], 1, MPI_UINT8_T, 1, i % 2 == 0 ? TAG1 : TAG2, MPI_COMM_WORLD);
+            if(DBG) printf("%s [%d] (%d) Sending %d to %d(Q%d).\n", TABS, _my_rank(), i, arr[i], _my_rank() + 1, i % 2 == 0 ? TAG1 : TAG2);
+        }
+    } else {
+        if (size_int == 1) printf("%d\n", arr[0]);
+        return 1;
     }
 
     return 0;
@@ -80,10 +90,14 @@ int main(int argc, char *argv[]) {
 
     // master process
     if (rank == 0) {
-        send_numbers();
-        // wait for finish
-        MPI_Recv(&n, 1, MPI_UINT8_T, size - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
+        int ret = send_numbers();
+        if (!ret) {
+            // wait for finish
+            MPI_Recv(&n, 1, MPI_UINT8_T, size - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        } else {
+            if (ret == -1) return -1;
+        }
+    // last process or middle processes
     } else {
         std::queue<uint8_t> lqs[2];
         
@@ -92,7 +106,7 @@ int main(int argc, char *argv[]) {
         MPI_Bcast(&numbers_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
         
         // last process
-        if (rank == size - 1) {
+        if (rank == size - 1 && numbers_size > 1) {
             for (int i=0; i < numbers_size; i++) {
                 MPI_Recv(&n, 1, MPI_UINT8_T, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &r);
                 lqs[r.MPI_TAG].push(n);
@@ -117,7 +131,7 @@ int main(int argc, char *argv[]) {
         }
         
         // middle processes 
-        else {
+        else if (numbers_size > 1) {
             
             bool started = false;
             int count[] = {1 << (rank - 1), 1 << (rank - 1)};
